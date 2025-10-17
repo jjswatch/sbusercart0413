@@ -5,11 +5,120 @@
 <meta charset="UTF-8">
 <title>簡易商城</title>
 <link rel="stylesheet"
+	href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet"
 	href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 <script src="//ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
 
 <script src="/js/jqusercart.js"></script>
 <style>
+body {
+	background: linear-gradient(135deg, #0f0f1a, #1b1b2f);
+	color: #f0f0f0;
+	font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* 導覽列玻璃擬態效果 */
+.navbar {
+	background: rgba(20, 20, 40, 0.7) !important;
+	backdrop-filter: blur(10px);
+	box-shadow: 0 2px 15px rgba(0, 0, 0, 0.6);
+}
+
+.navbar-brand {
+	font-weight: 700;
+	background: linear-gradient(90deg, #4facfe, #00f2fe);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	font-size: 1.5rem;
+}
+
+.nav-link {
+	color: #ccc !important;
+	transition: 0.3s;
+}
+
+.nav-link:hover {
+	color: #00f2fe !important;
+	text-shadow: 0 0 8px #00f2fe;
+}
+
+/* 搜尋欄 */
+#searchInput {
+	background-color: rgba(255, 255, 255, 0.1);
+	border: none;
+	color: #fff;
+	transition: all 0.3s;
+}
+
+#searchInput:focus {
+	background-color: rgba(255, 255, 255, 0.2);
+	box-shadow: 0 0 10px #00f2fe;
+}
+
+/* 產品卡片 */
+.product-card {
+	background: rgba(40, 40, 60, 0.7);
+	border: none;
+	border-radius: 12px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	transition: all 0.3s ease;
+	color: #fff;
+}
+
+.product-card:hover {
+	transform: translateY(-5px) scale(1.03);
+	box-shadow: 0 0 20px #00f2fe;
+}
+
+.product-card img {
+	border-radius: 12px 12px 0 0;
+}
+
+/* 控制列按鈕 */
+.btn-outline-primary {
+	border-color: #00f2fe;
+	color: #00f2fe;
+}
+
+.btn-outline-primary:hover {
+	background: linear-gradient(90deg, #4facfe, #00f2fe);
+	color: #000;
+	box-shadow: 0 0 10px #00f2fe;
+}
+
+.btn-outline-secondary {
+	color: #aaa;
+	border-color: #aaa;
+}
+
+.btn-outline-secondary:hover {
+	background: #aaa;
+	color: #000;
+}
+
+/* 分頁 */
+.pagination .page-link {
+	background-color: rgba(255, 255, 255, 0.05);
+	border: none;
+	color: #00f2fe;
+}
+
+.pagination .page-link:hover {
+	background-color: #00f2fe;
+	color: #000;
+	box-shadow: 0 0 10px #00f2fe;
+}
+
+/* 登入區塊、購物車、訂單 */
+#login, #orders, #cart, #productDetail {
+	background: rgba(30, 30, 50, 0.6);
+	padding: 20px;
+	border-radius: 10px;
+	box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+}
+
+/* 隱藏顯示頁面 */
 #content>div {
 	display: none;
 }
@@ -17,6 +126,88 @@
 #content>.active {
 	display: block;
 }
+
+h3 {
+	border-left: 5px solid #00f2fe;
+	padding-left: 10px;
+	margin-bottom: 20px;
+}
+
+/* 科技感按鈕 */
+.btn-neon {
+	background: linear-gradient(90deg, #4facfe, #00f2fe);
+	border: none;
+	color: #000;
+	box-shadow: 0 0 8px #00f2fe;
+	transition: all 0.3s;
+}
+
+.btn-neon:hover {
+	box-shadow: 0 0 20px #00f2fe;
+	transform: scale(1.03);
+}
+
+/* 購物車玻璃效果 */
+.cart-item-glass {
+	background: rgba(255, 255, 255, 0.05);
+	backdrop-filter: blur(8px);
+	border: none;
+	color: #fff;
+	transition: 0.3s;
+}
+
+.cart-item-glass:hover {
+	background: rgba(0, 242, 254, 0.15);
+	box-shadow: 0 0 12px #00f2fe;
+}
+
+/* 訂單表格玻璃擬態 */
+.table-glass {
+	background: rgba(255, 255, 255, 0.05);
+	backdrop-filter: blur(8px);
+	border-radius: 10px;
+}
+
+.table-glass th, .table-glass td {
+	color: #fff;
+}
+
+.table-glass thead {
+	background: rgba(0, 242, 254, 0.1);
+}
+
+.table-glass tbody tr:hover {
+	background: rgba(0, 242, 254, 0.15);
+}
+
+/* 商品標題漸層字 */
+.product-detail-title {
+  font-weight: 700;
+  background: linear-gradient(90deg, #4facfe, #00f2fe);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+}
+
+/* 推薦標題 */
+.product-detail-recommend-title {
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: #fff;
+  text-shadow: 0 0 10px #00f2fe;
+}
+
+/* 推薦卡片 hover 效果 */
+#recommendList .product-card {
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+#recommendList .product-card:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 0 20px #00f2fe;
+}
+
+
 </style>
 </head>
 
@@ -27,18 +218,34 @@
 			<a class="navbar-brand" href="#">我的商城</a>
 			<div class="collapse navbar-collapse">
 				<ul class="navbar-nav me-auto mb-2 mb-lg-0">
+					<!-- 
 					<li class="nav-item" id="nav-login"><a class="nav-link"
 						href="#" data-target="login">帳戶登入</a></li>
+					
 					<li class="nav-item" id="nav-logout"><a class="nav-link"
 						href="#" data-target="logout">帳戶登出</a></li>
+					 -->
 					<li class="nav-item"><a class="nav-link" href="#"
 						data-target="products">產品列表</a></li>
 					<li class="nav-item"><a class="nav-link" href="#"
 						data-target="orders">訂單</a></li>
 					<li class="nav-item"><a class="nav-link" href="#"
 						data-target="cart">購物車</a></li>
+					<!-- 新增搜尋欄 li -->
+					<li class="nav-item"><input type="text" id="searchInput"
+						class="form-control" style="width: 500px;"
+						placeholder="輸入產品名稱關鍵字進行搜尋" oninput="filterProducts()"></li>
 				</ul>
-				<span class="navbar-text text-white" id="loginStatus">未登入</span>
+
+				<!-- 右側登入資訊與按鈕 -->
+				<div class="d-flex align-items-center ms-auto">
+					<span class="navbar-text text-white me-3" id="loginStatus">未登入</span>
+					<button class="btn btn-outline-light btn-sm" id="nav-logout">登出</button>
+				</div>
+				<!-- 
+				<button class="btn btn-outline-light btn-sm" id="nav-login">登入</button>
+				<button class="btn btn-outline-light btn-sm" id="nav-logout">登出</button>
+				 -->
 			</div>
 		</div>
 	</nav>
@@ -58,6 +265,30 @@
 		<!-- 產品列表 -->
 		<div id="products">
 			<h3>產品列表</h3>
+
+			<!-- 控制列：分類 + 排序 -->
+			<div
+				class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+				<!-- 左側：分類篩選 -->
+				<div class="w-auto">
+					<select id="brandFilter" class="form-select form-select-sm">
+						<option value="all">全部分類</option>
+						<!-- 其他分類項目會由 JS 動態插入 -->
+					</select>
+				</div>
+
+				<!-- 右側：價格排序 -->
+				<div class="btn-group" role="group" aria-label="價格排序">
+					<button class="btn btn-outline-primary"
+						onclick="setSortOrder('asc')">價格：低到高</button>
+					<button class="btn btn-outline-primary"
+						onclick="setSortOrder('desc')">價格：高到低</button>
+					<button class="btn btn-outline-secondary"
+						onclick="setSortOrder('default')">清除排序</button>
+				</div>
+			</div>
+
+
 			<div id="productList" class="row"></div>
 			<!-- 分頁控制 -->
 			<nav aria-label="Page navigation example" class="mt-3">

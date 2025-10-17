@@ -2,6 +2,8 @@
 let isLoggedIn = false;
 let cart = [];
 let myproducts = [];
+let filteredProducts = null;  // null 表示沒有啟用搜尋
+let priceSortOrder = 'default'; // asc, desc, default
 // 分頁相關變數
 let currentPage = 1;
 const pageSize = 8; // 每頁顯示幾個產品
@@ -48,20 +50,26 @@ function updateCart() {
 	let total = 0;
 
 	if (cart.length === 0) {
-		$('#cartItems').append('<li class="list-group-item">購物車是空的</li>');
+		$('#cartItems').append('<li class="list-group-item bg-transparent text-light text-center">🛒 購物車是空的</li>');
 	} else {
 		cart.forEach((item, index) => {
 			total += item.price * item.quantity;
 			$('#cartItems').append(`
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            ${item.title} - ${item.price} 元 ,數量: ${item.quantity}
-            <button class="btn btn-sm btn-danger" onclick="removeFromCart(${index})">刪除</button>
-          </li>
-        `);
+        <li class="list-group-item d-flex justify-content-between align-items-center cart-item-glass">
+          <span>
+            <strong>${item.title}</strong><br>
+            <small class="text-info">${item.price} 元 × ${item.quantity}</small>
+          </span>
+          <button class="btn btn-sm btn-danger" onclick="removeFromCart(${index})">
+            <i class="fa fa-trash"></i>
+          </button>
+        </li>
+      `);
 		});
 	}
 	$('#totalPrice').text(total);
 }
+
 
 function removeFromCart(index) {
 	if (confirm("確定要將此商品從購物車中移除嗎？")) {
@@ -72,6 +80,10 @@ function removeFromCart(index) {
 
 function start() {
 	isLoggedIn = false;
+
+	// 預設登入按鈕顯示，登出按鈕隱藏
+	$('#nav-login').show();
+	$('#nav-logout').hide();
 
 	// 檢查是否已登入（從 token 判斷）
 	$.ajax({
@@ -85,8 +97,7 @@ function start() {
 				isLoggedIn = true;
 				const username = sessionStorage.getItem("username");
 				$('#loginStatus').text(`歡迎，${username}`);
-				$('#nav-login').hide(); // 隱藏登入選項
-				$('#nav-logout').show(); // 顯示帳戶登出
+				$('#nav-logout').show();
 
 				// 切換到產品列表畫面
 				$('#content > div').removeClass('active');
@@ -95,7 +106,6 @@ function start() {
 			} else {
 				isLoggedIn = false;
 				$('#loginStatus').text('未登入');
-				$('#nav-login').show();   // 顯示帳戶登入
 				$('#nav-logout').hide();  // 隱藏帳戶登出
 
 				// 切換到登入畫面
@@ -106,7 +116,6 @@ function start() {
 		error: function() {
 			isLoggedIn = false;
 			$('#loginStatus').text('未登入');
-			$('#nav-login').show();
 			$('#nav-logout').hide();
 
 			$('#content > div').removeClass('active');
@@ -119,10 +128,25 @@ function start() {
 		logout();
 	});
 
+	$('#searchInput').on('input', filterAndSortProducts);
+	$('#brandFilter').on('change', filterAndSortProducts);
+	$('#priceSort').on('change', filterAndSortProducts);
+
 	$('.nav-link').click(function(e) {
 		e.preventDefault();
 		let target = $(this).data('target');
 		console.log('切換到畫面：', target);
+
+		// 如果點擊的是需要登入的頁面（cart 或 orders），先檢查是否登入
+		if ((target === 'cart' || target === 'orders') && !isLoggedIn) {
+			alert('請先登入才能查看此頁面');
+			// 導向登入頁面
+			$('#content > div').removeClass('active');
+			$('#login').addClass('active');
+			return;
+		}
+
+		// 一般頁面切換
 		$('#content > div').removeClass('active');
 		$('#' + target).addClass('active');
 
@@ -131,7 +155,6 @@ function start() {
 			loadProducts();
 		}
 
-		//if (target === 'products') loadProducts();
 		if (target === 'cart') updateCart();
 		if (target === 'orders') showOrders();
 	});
@@ -184,23 +207,14 @@ function start() {
 			dataType: "json",
 			success: function(products) {
 				myproducts = products;
-				/*
-				$.each(products, function(i, product) {
-					$('#productList').append(`
-							   <div class="col-md-3">
-								 <div class="card mb-3">
-								  <div class="card-body">
-									<h5 class="card-title">${product.title}</h5>
-									<img src="${product.image}"  class="card-img-top" width="160" height="200"/>
-									<p class="card-text">價格：${product.price} 元</p>
-									<p class="card-text">購買數量：<input type="text" id=qty${i} value="1"></p>
-						   <button class="btn btn-success" onclick="addToCart(${product.id},qty${i})">加入購物車</button>
-								 </div>
-								</div>
-							  </div>
-							`);
+
+				// 根據品牌建立分類選單
+				const brands = [...new Set(products.map(p => p.brand))]; // 取得唯一品牌
+				$('#brandFilter').empty().append(`<option value="all">全部品牌</option>`);
+				brands.forEach(brand => {
+					$('#brandFilter').append(`<option value="${brand}">${brand}</option>`);
 				});
-				*/
+
 				renderProductPage();      // 渲染當前頁面產品
 				renderPagination();       // 渲染分頁按鈕
 			},
@@ -208,126 +222,245 @@ function start() {
 				$('#loginMessage').text('帳號或密碼錯誤');
 			}
 		});
-
 	}
 }
+
+function setSortOrder(order) {
+	priceSortOrder = order;
+	filterAndSortProducts();
+}
+
+function filterAndSortProducts() {
+	const keyword = $('#searchInput').val().toLowerCase().replace(/\s+/g, '');
+	const selectedBrand = $('#brandFilter').val();
+
+	// 篩選產品
+	filteredProducts = myproducts.filter(p => {
+		const titleNormalized = p.title.toLowerCase().replace(/\s+/g, '');
+		const matchesKeyword = !keyword || titleNormalized.includes(keyword);
+		const matchesBrand = selectedBrand === 'all' || p.brand === selectedBrand;
+		return matchesKeyword && matchesBrand;
+	});
+
+	// 排序產品
+	if (priceSortOrder === 'asc') {
+		filteredProducts.sort((a, b) => Number(a.price) - Number(b.price));
+	} else if (priceSortOrder === 'desc') {
+		filteredProducts.sort((a, b) => Number(b.price) - Number(a.price));
+	}
+
+	currentPage = 1;  // 重置頁碼
+	renderProductPage();
+	renderPagination();
+}
+
+function renderProducts(products) {
+	$('#productList').empty();
+	$.each(products, function(i, product) {
+		$('#productList').append(`
+      <div class="col-md-3 mb-4">
+        <div class="product-card h-100">
+          <img src="${product.image}" class="card-img-top" width="160" height="200"/>
+          <div class="card-body">
+            <h5 class="card-title">${product.title}</h5>
+            <p class="card-text text-info">價格：${product.price} 元</p>
+            <p class="card-text">數量：
+              <input type="number" id="qty${i}" value="1" min="1" max="${product.stock}" 
+                     class="form-control form-control-sm w-50 d-inline-block text-center">
+            </p>
+            <button class="btn btn-neon btn-sm mb-1 w-100" onclick="addToCart(${product.id}, qty${i})">
+              <i class="fa fa-cart-plus me-1"></i> 加入購物車
+            </button>
+            <button class="btn btn-outline-light btn-sm w-100" onclick="viewProductDetail(${product.id})">
+              查看商品
+            </button>
+          </div>
+        </div>
+      </div>
+    `);
+	});
+}
+
 
 // 顯示當前頁面的產品
 function renderProductPage() {
 	$('#productList').empty();
+
+	const sourceProducts = filteredProducts && filteredProducts.length ? filteredProducts : myproducts;
 	const startIndex = (currentPage - 1) * pageSize;
 	const endIndex = startIndex + pageSize;
-	const productsToShow = myproducts.slice(startIndex, endIndex);
+	const productsToShow = sourceProducts.slice(startIndex, endIndex);
 
-	/*
+	if (productsToShow.length === 0) {
+		$('#productList').html('<p class="text-muted">查無商品</p>');
+		return;
+	}
+
 	$.each(productsToShow, function(i, product) {
 		const index = startIndex + i;
 		$('#productList').append(`
-				<div class="col-md-3">
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">${product.title}</h5>
-							<img src="${product.image}" class="card-img-top" width="160" height="200"/>
-							<p class="card-text">價格：${product.price} 元</p>
-							<p class="card-text">購買數量：<input type="text" id="qty${index}" value="1"></p>
-							<button class="btn btn-success" onclick="addToCart(${product.id}, qty${index})">加入購物車</button>
-						</div>
-					</div>
-				</div>
-			`);
-	});
-	*/
-	$.each(productsToShow, function(i, product) {
-		const index = startIndex + i;
-		$('#productList').append(`
-	            <div class="col-md-3">
-	                <div class="card mb-3">
-	                    <img src="${product.image}" class="card-img-top" width="160" height="200"/>
-	                    <div class="card-body">
-	                        <h5 class="card-title">${product.title}</h5>
-	                        <p class="card-text">價格：${product.price} 元</p>
-	                        <p class="card-text">購買數量：<input type="number" id="qty${index}" value="1" min="1" max="${product.stock}"></p>
-	                        <button class="btn btn-success btn-sm mb-1" onclick="addToCart(${product.id}, qty${index})">加入購物車</button>
-	                        <button class="btn btn-primary btn-sm" onclick="viewProductDetail(${product.id})">查看商品</button>
-	                    </div>
-	                </div>
-	            </div>
-	        `);
+            <div class="col-md-3">
+                <div class="card mb-3">
+                    <img src="${product.image}" class="card-img-top" width="160" height="200"/>
+                    <div class="card-body">
+                        <h4 class="product-detail-title mb-3">${product.title}</h4>
+                        <p class="card-text">價格：${product.price} 元</p>
+                        <p class="card-text">購買數量：<input type="number" id="qty${index}" value="1" min="1" max="${product.stock}"></p>
+						<button class="btn btn-neon flex-grow-1" onclick="addToCart(${product.id}, '#detailQty')">
+						                    <i class="fa fa-cart-plus me-1"></i> 加入購物車
+						                </button>
+                        <button class="btn btn-primary btn-sm" onclick="viewProductDetail(${product.id})">查看商品</button>
+                    </div>
+                </div>
+            </div>
+        `);
 	});
 }
 
 // 分頁按鈕
 function renderPagination() {
 	$('#pagination').empty();
-	const totalPages = Math.ceil(myproducts.length / pageSize);
+	const sourceProducts = filteredProducts || myproducts;
+	const totalPages = Math.ceil(sourceProducts.length / pageSize);
 
 	// 上一頁
 	$('#pagination').append(`
-	        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-	            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">上一頁</a>
-	        </li>
-	    `);
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">上一頁</a>
+        </li>
+    `);
 
 	// 頁碼
 	for (let i = 1; i <= totalPages; i++) {
 		$('#pagination').append(`
-	            <li class="page-item ${currentPage === i ? 'active' : ''}">
-	                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
-	            </li>
-	        `);
+            <li class="page-item ${currentPage === i ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
+        `);
 	}
 
 	// 下一頁
 	$('#pagination').append(`
-	        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-	            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">下一頁</a>
-	        </li>
-	    `);
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">下一頁</a>
+        </li>
+    `);
 }
 
 // 切換頁碼
 function changePage(page) {
-	const totalPages = Math.ceil(myproducts.length / pageSize);
+	const sourceProducts = filteredProducts || myproducts;
+	const totalPages = Math.ceil(sourceProducts.length / pageSize);
 	if (page < 1 || page > totalPages) return;
+
 	currentPage = page;
 	renderProductPage();
 	renderPagination();
 }
 
 function viewProductDetail(productId) {
-	$.ajax({
-		url: `http://localhost:8080/api/products/${productId}`,
-		type: "GET",
-		dataType: "json",
-		success: function(product) {
-			// 切換畫面
-			$('#content > div').removeClass('active');
-			$('#productDetail').addClass('active');
+  $.ajax({
+    url: `http://localhost:8080/api/products/${productId}`,
+    type: "GET",
+    dataType: "json",
+    success: function (product) {
+      // 切換畫面
+      $('#content > div').removeClass('active');
+      $('#productDetail').addClass('active');
 
-			// 顯示商品資料
-			$('#productDetailContent').html(`
-                <div class="row">
-                    <div class="col-md-5">
-                        <img src="${product.image}" class="img-fluid" alt="${product.title}">
-                    </div>
-                    <div class="col-md-7">
-                        <h4>${product.title}</h4>
-                        <p><strong>價格：</strong> ${product.price} 元</p>
-                        <p><strong>庫存：</strong> ${product.stock || '無'}</p>
-                        <p><strong>描述：</strong> ${product.description || '暫無商品說明'}</p>
-                        <div class="mb-2">
-                            購買數量：
-                            <input type="number" id="detailQty" value="1" min="1" max="${product.stock}" class="form-control w-25 d-inline">
-                        </div>
-                        <button class="btn btn-success" onclick="addToCart(${product.id}, '#detailQty')">加入購物車</button>
-                    </div>
-                </div>
-            `);
-		},
-		error: function(xhr) {
-			alert("無法取得商品資料，請稍後再試");
-		}
-	});
+      // 主商品資訊
+      $('#productDetailContent').html(`
+        <div class="row product-detail-glass p-4 mb-4">
+          <div class="col-md-5 text-center mb-3 mb-md-0">
+            <img src="${product.image}" class="img-fluid product-detail-image rounded shadow" alt="${product.title}">
+          </div>
+          <div class="col-md-7">
+            <h2 class="product-detail-title mb-3">${product.title}</h2>
+            <p class="mb-2">
+              <strong class="text-info">價格：</strong> 
+              <span class="fs-5">${product.price} 元</span>
+            </p>
+            <p class="mb-2">
+              <strong class="text-info">庫存：</strong> 
+              <span>${product.stock || '無'}</span>
+            </p>
+            <p class="mb-3">
+              <strong class="text-info">描述：</strong>
+              <span>${product.description || '暫無商品說明'}</span>
+            </p>
+            <div class="mb-3">
+              <label for="detailQty" class="form-label">購買數量：</label>
+              <input type="number" id="detailQty" value="1" min="1" max="${product.stock}" 
+                     class="form-control d-inline-block text-center w-25">
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-neon flex-grow-1" onclick="addToCart(${product.id}, '#detailQty')">
+                <i class="fa fa-cart-plus me-1"></i> 加入購物車
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 推薦商品區塊 -->
+        <div class="mt-4">
+          <h4 class="product-detail-recommend-title mb-3">
+            <i class="fa fa-star text-info me-2"></i> 其他人也買了
+          </h4>
+          <div id="recommendList" class="row"></div>
+        </div>
+      `);
+
+      
+
+      // 載入推薦商品
+      loadRecommendedProducts(productId);
+    },
+    error: function (xhr) {
+      alert("無法取得商品資料，請稍後再試");
+    }
+  });
+}
+
+function loadRecommendedProducts(currentProductId) {
+  // 從現有 myproducts 中挑出其他 4 個隨機商品
+  let candidates = myproducts.filter(p => p.id !== currentProductId);
+  candidates = shuffleArray(candidates).slice(0, 4);
+
+  if (candidates.length === 0) {
+    $('#recommendList').html('<p class="text-muted">暫無推薦商品</p>');
+    return;
+  }
+
+  candidates.forEach((product, i) => {
+    $('#recommendList').append(`
+      <div class="col-md-3 col-sm-6 mb-3">
+        <div class="product-card h-100 p-2">
+          <img src="${product.image}" class="card-img-top" height="150" style="object-fit: cover;">
+          <div class="card-body text-center">
+            <h6 class="card-title text-truncate">${product.title}</h6>
+            <p class="card-text text-info mb-2">${product.price} 元</p>
+            <button class="btn btn-neon btn-sm w-100 mb-2" onclick="addToCart(${product.id}, '#fakeQty${i}')">
+              <i class="fa fa-cart-plus"></i> 加入
+            </button>
+            <button class="btn btn-outline-light btn-sm w-100" onclick="viewProductDetail(${product.id})">
+              查看
+            </button>
+            <input type="hidden" id="fakeQty${i}" value="1">
+          </div>
+        </div>
+      </div>
+    `);
+  });
+}
+
+// 工具函式：隨機打亂陣列
+function shuffleArray(array) {
+  let arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 
@@ -336,51 +469,49 @@ function showOrders() {
 		alert('user not login');
 		return;
 	}
-	$('#orderList').empty();
-	$('#itemList').empty();
-	$('#orderList').append(`
-        <div class="col-md-3">                            
-            <p>訂單編號</p>                                                      
-         </div>
-         <div class="col-md-3">                            
-            <p>訂單用戶</p>                                                      
-         </div>
-         <div class="col-md-3">                            
-            <p>訂單時間</p>                                                      
-         </div>
-        <div class="col-md-3">                            
-          <p>Action</p>
-         </div>
-    `);
+	$('#orderList').html(`
+    <table class="table table-dark table-glass table-hover align-middle">
+      <thead>
+        <tr>
+          <th>訂單編號</th>
+          <th>用戶</th>
+          <th>時間</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="orderTableBody"></tbody>
+    </table>
+  `);
+
 	$.ajax({
 		url: "http://localhost:8080/api/orders/" + sessionStorage.getItem("username"),
 		type: "GET",
 		dataType: "json",
 		success: function(orders) {
 			$.each(orders, function(i, order) {
-				$('#orderList').append(`
-                            <div class="col-md-3">                            
-                                <p>${order.id}</p>                                                      
-                             </div>
-                             <div class="col-md-3">                            
-                                <p>${order.username}</p>                                                      
-                             </div>
-                             <div class="col-md-3">                            
-                                <p>${order.orderTime}</p>                                                      
-                             </div>
-                            <div class="col-md-3">                            
-                              <button class="btn btn-success" onclick="showDetails(${order.id})">顯示訂購商品</button>
-							  <button class="btn btn-danger" onclick="deleteOrder(${order.id})">刪除訂單</button>
-                             </div>
-                        `);
+				$('#orderTableBody').append(`
+          <tr>
+            <td>${order.id}</td>
+            <td>${order.username}</td>
+            <td>${order.orderTime}</td>
+            <td>
+              <button class="btn btn-outline-info btn-sm" onclick="showDetails(${order.id})">
+                <i class="fa fa-eye"></i>
+              </button>
+              <button class="btn btn-outline-danger btn-sm" onclick="deleteOrder(${order.id})">
+                <i class="fa fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `);
 			});
 		},
-		error: function(xhr) {
-			$('#loginMessage').text('帳號或密碼錯誤');
+		error: function() {
+			$('#orderTableBody').append('<tr><td colspan="4" class="text-center text-muted">載入訂單失敗</td></tr>');
 		}
 	});
-
 }
+
 
 function showDetails(orderid) {
 	$('#orderList').empty();
@@ -394,14 +525,12 @@ function showDetails(orderid) {
          <div class="col-md-4">                            
             <p>訂單時間</p>                                                      
          </div>
-        
     `);
 	$.ajax({
 		url: "http://localhost:8080/api/orders/orderid/" + orderid,
 		type: "GET",
 		dataType: "json",
 		success: function(order) {
-
 			$('#orderList').append(`
                             <div class="col-md-4">                            
                                 <p>${order.id}</p>                                                      
@@ -411,10 +540,8 @@ function showDetails(orderid) {
                              </div>
                              <div class="col-md-4">                            
                                 <p>${order.orderTime}</p>                                                      
-                             </div>
-                            
+                             </div>         
                         `);
-
 		},
 		error: function(xhr) {
 			$('#loginMessage').text('帳號或密碼錯誤');
@@ -447,26 +574,6 @@ function deleteOrder(orderid) {
 
 function showItemDetails(orderid) {
 	$('#itemList').empty();
-	/*
-	$('#itemList').append(`
-		<div class="col-md-3">                            
-			<p>產品編號</p>                                                      
-		 </div>
-		 <div class="col-md-3">                            
-			<p>產品名稱</p>                                                      
-		 </div>
-		 <div class="col-md-3">                            
-			<p>產品價格</p>                                                      
-		 </div>
-		<div class="col-md-3">                            
-		  <p>數量</p>
-		 </div>
-		 <div class="col-md-3">
-			  <p>操作</p>
-		</div>
-	`);
-	*/
-
 	$('#itemList').append(`
 	        <table class="table table-bordered table-striped">
 	            <thead class="thead-dark">
@@ -482,7 +589,6 @@ function showItemDetails(orderid) {
 	            </tbody>
 	        </table>
 	    `);
-
 	$.ajax({
 		url: "http://localhost:8080/api/items/" + orderid,
 		type: "GET",
@@ -506,7 +612,6 @@ function showItemDetails(orderid) {
 			$('#loginMessage').text('取得訂購商品失敗');
 		}
 	});
-
 }
 
 function deleteOrderItem(orderid, orderItemId) {
@@ -521,7 +626,6 @@ function deleteOrderItem(orderid, orderItemId) {
 		success: function() {
 			alert("商品已成功刪除！");
 			showOrders(); // 改成回到訂單列表畫面
-			//showItemDetails(orderid); // 重新載入商品列表
 		},
 		error: function(xhr) {
 			if (xhr.status === 403 || xhr.status === 401) {
@@ -534,17 +638,7 @@ function deleteOrderItem(orderid, orderItemId) {
 }
 
 function addToCart(productId, qty) {
-	/*
-	const product = myproducts.find(p => p.id === productId);
-	console.log("qty:" + $(qty).val())
-	const product2 = { ...product, "quantity": $(qty).val() }
-	cart.push(product2);
-	console.log("product:" + JSON.stringify(product2));
-	alert(`已將 ${product2.title} 加入購物車`);
-	*/
-
 	const quantity = parseInt($(qty).val());
-	//const quantity = $(qty).val();
 
 	// 先從 myproducts 找
 	let product = myproducts.find(p => p.id === productId);
@@ -586,7 +680,8 @@ function logout() {
 	$('#nav-logout').hide();
 	$('#content > div').removeClass('active');
 	$('#login').addClass('active');
+	$('#username').val('');
+	$('#password').val('');
 }
 
 $(document).ready(start);
-
